@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum LedgerType {
+  RECEIVABLE
+  PAYABLE
+}
+
+enum InterestType {
+  FLAT
+  MONTHLY
+}
+
+enum LedgerStatus {
+  ACTIVE
+  SETTLED
+  OVERDUE
+  CANCELLED
+}
+
+model User {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  phone     String?
+  fullName  String   @map("full_name")
+  avatarUrl String?  @map("avatar_url")
+  currency  String   @default("UGX")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  contacts      Contact[]
+  ledgerEntries LedgerEntry[]
+
+  @@map("users")
+}
+
+model Contact {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String
+  phone     String?
+  email     String?
+  notes     String?
+  avatarUrl String?  @map("avatar_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledgerEntries LedgerEntry[]
+
+  @@unique([userId, phone])
+  @@map("contacts")
+}
+
+model LedgerEntry {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @map("user_id") @db.Uuid
+  contactId       String       @map("contact_id") @db.Uuid
+  type            LedgerType
+  description     String?
+  principalAmount Decimal      @map("principal_amount") @db.Decimal(15, 2)
+  currency        String       @default("UGX")
+  interestRate    Decimal?     @map("interest_rate") @db.Decimal(5, 2)
+  interestType    InterestType? @map("interest_type")
+  status          LedgerStatus @default(ACTIVE)
+  dueDate         DateTime?    @map("due_date")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contact  Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@index([userId])
+  @@index([userId, type])
+  @@index([userId, status])
+  @@map("ledger_entries")
+}
+
+model Payment {
+  id            String      @id @default(uuid()) @db.Uuid
+  ledgerEntryId String      @map("ledger_entry_id") @db.Uuid
+  amount        Decimal     @db.Decimal(15, 2)
+  notes         String?
+  paidAt        DateTime    @default(now()) @map("paid_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  ledgerEntry LedgerEntry @relation(fields: [ledgerEntryId], references: [id], onDelete: Cascade)
+
+  @@index([ledgerEntryId])
+  @@map("payments")
+}
